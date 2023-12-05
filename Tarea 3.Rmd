@@ -1,0 +1,264 @@
+---
+title: "Tarea 3"
+author: "Jesus Palmero Garcia"
+date: "2023-12-05"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Cargar paquete igraph porque es el que se utiliza para generar redes en R.
+
+```{r}
+library(igraph)
+```
+
+## Lectura de targets.txt
+Una vez está cargado el paquete se ve con qué genes se va a trabajar, es
+decir los factores de transcripción. Para esto se lee el archivo targets.txt.
+
+```{r pressure, echo=FALSE}
+#Vamos a ver con que genes (TFs) trabajamos
+
+tfs.data <- read.table("targets.txt", as.is = T)
+tfs <- tfs.data$V1
+```
+
+Comprobamos el número de factores de transcripción con el que vamos a trabajar.
+
+```{r}
+length(tfs)
+```
+Vamos a trabajar con 4 factores de transcripción.
+
+
+Se crea el vector genes.in.net que tendrá el vector con los genes que regula cada factor de transcripción, y se rellena con los nombres de estos genes. En caso de que los factores de transcripción de interés no estén incluidos en genes.in.net se incluyen.
+```{r}
+
+genes.in.net <- c()
+
+for(i in 1:length(tfs))
+{
+  cur.tf.file <- paste0(tfs[i], ".txt", sep = "")
+  cur.tf.data <- read.table(cur.tf.file, as.is = T)
+  cur.tf.targets <- cur.tf.data$V1
+  genes.in.net <- c(genes.in.net, cur.tf.targets)
+}
+
+```
+
+Ejecutar length sobre este vector nos revela el número de genes incluidos en la muestra, pero algunos de estos están repetidos porque son diana de múltiples factores de transcripción. Para ver el número de genes sin repetir se añade unique().
+```{r}
+length(genes.in.net)
+length(unique(genes.in.net))
+
+```
+
+#Construcción de la red
+
+Se crea la matriz de adyacencia vacía que tiene como número de filas y columnas el número de genes de la red. Se nombran las filas y columnas con el nombre de cada gen.
+```{r}
+
+adj.matrix <- matrix(0, nrow = length(unique(genes.in.net)),
+                     ncol = length(unique(genes.in.net)))
+
+rownames(adj.matrix) <- unique(genes.in.net)
+colnames(adj.matrix) <- unique(genes.in.net)
+
+
+```
+
+Se rellena la matriz de adyacencia con un bucle for. Recorre las filas y cambia el valor nulo a 1 si el gen pertinente está en la lista. Se puede comprobar que el número de 1 añadidos es igual al número de genes con sum().
+
+```{r}
+
+for(i in 1:length(tfs))
+{
+  cur.tf <- tfs[i]
+  cur.tf.file <- read.table(paste0(cur.tf, ".txt"))
+  cur.tf.vec <- cur.tf.file$V1
+  adj.matrix[cur.tf, cur.tf.vec] <- 1
+}
+
+sum(adj.matrix)
+
+
+```
+
+Creación de la red
+
+```{r}
+transcriptional.network <- graph.adjacency(adj.matrix, mode = "directed")
+transcriptional.network
+class(transcriptional.network)
+
+write.graph(transcriptional.network, "my_transcriptional_network.gml"
+            , format = "gml")
+
+#Red libre de escala
+
+net.degrees <- degree(transcriptional.network, mode = "out")
+head(net.degrees)
+
+net.degrees <- degree(transcriptional.network, mode = "total")
+
+hist(net.degrees, xlim = c(0,4000), breaks = seq(0,3860, 20), ylim = c(0,15))
+#Se puede considerar libre de escala pero como hay muchos genes y la frecuencia
+#es alta apenas se va a observar alguno de otro grado
+
+tfs.degree.dist <- degree_distribution(transcriptional.network)
+
+power.law.fit(net.degrees)
+#Necesitamos un p valor alto cercano a 1 porque la hipotesis nula
+#es que se ajuste a una red libre de escala
+
+
+node.degree.freq <- table(net.degrees)
+
+lm.res <- lm(log(node.degree.freq) ~ as.numeric(names(node.degree.freq)))
+summary(lm.res)
+
+plot(as.numeric(names(node.degree.freq)), log(node.degree.freq))
+
+
+
+library(igraph)
+transcriptional.network <- read.graph("my_transcriptional_network.gml",
+                                      format = "gml")
+
+tfs.net <- induced.subgraph(transcriptional.network, tfs)
+
+plot.igraph(tfs.net, vertex.size = 8, arrow.size = 0.5,
+            edge.arrow.size = 0.1)
+
+#Ahora ver que motivos de red aparecen en nuestra red
+#Motivos de red de un nodo: autorregulacion
+
+
+
+
+#Luego para ver si es un motivo de red hay que crear redes aleatorias
+#en las que comparar para ver si ese motivo esta enriquecido en nuestra
+#red
+#Antimotivos son aquellos que estan deliberadamente menos presentes
+
+tfs.adj <- as.matrix(get.adjacency(tfs.net))
+class(tfs.adj)
+tfs.adj[1:6, 1:6]    
+
+sum(diag(tfs.adj))
+
+num.nodos.al <- ncol(tfs.adj)
+#21 nodos para usar el dato en la red aleatoria
+random.tfs <- sample(x=1:num.nodos.al, size = 21, replace = F)
+out.degree <- degree(tfs.net, mode = "out")
+out.tfs.true <- out.degree[out.degree != 0]
+random.adj <- matrix(0, nrow = num.nodos.al, ncol = num.nodos.al)
+dim(random.adj)
+
+for(i in 1:length(random.tfs))
+{
+  random.adj[i,sample(x=1:num.nodos.al, size = out.tfs.true[i], replace = F)] <- 1
+}
+
+sum(random.adj)
+sum(out.degree)
+sum(diag(random.adj))
+
+#Corregulaciones
+
+#Se multiplica la normal opor la traspuesta para ver donde hay corregulacion.
+#Tambien incluye la autorregulacion que es la diagonal
+
+true.cor <- (sum(tfs.adj*t(tfs.adj)) - sum(diag(tfs.adj)))/2
+
+#Crear mayor nº de redes aleatorias para determinar mmotivos de 1 y 2 nodos
+
+true.num.auto <- sum(diag(tfs.adj))
+true.num.cor <- (sum(tfs.adj*t(tfs.adj)) - sum(diag(tfs.adj)))/2
+out.degree <- degree(tfs.net, mode = "out")
+out.tfs.true <- out.degree[out.degree != 0]
+num.nodos.al <- ncol(tfs.adj)
+
+number.randomizations <- 100
+
+random.auto <- c()
+random.correg <- c()
+
+for(j in 1:100)
+{
+  random.tfs <- sample(x=1:num.nodos.al,
+                       size = sum(out.degree != 0), replace = F)
+  random.adj <- matrix(0, nrow = num.nodos.al, ncol = num.nodos.al)
+  for(i in 1:length(random.tfs))
+  {
+    random.adj[random.tfs[i],sample(x=1:num.nodos.al,
+                                    size = out.tfs.true[i], replace = F)] <- 1
+  }
+  current.num.auto <- sum(diag(random.adj))
+  current.num.correg <- (sum(random.adj*t(random.adj)) - current.num.auto)/2
+  random.auto <- c(random.auto, current.num.auto)
+  random.correg <- c(random.correg, current.num.correg)
+}
+
+
+random.auto
+random.correg
+
+#Para ver si autorregulacion es motivo de nuestra red
+sum(true.num.auto <= random.auto)/number.randomizations #p-valor < 0.01
+#Significativo
+
+#Para ver si corregulacion es motivo de nuestra red
+sum(true.num.cor <= random.correg)/number.randomizations #p-valor > 0.01
+#No significativo
+
+
+
+#Motivos para 3 nodos
+#Crear un grapho
+plot.igraph(graph.isocreate(size = 3, number = 4, directed = T))
+true.3.nodes <- graph.motifs(graph = tfs.net, size = 3)
+
+#Generar redes y comparar frecuencia de aparición
+randomizations <- 100
+random.3.nodes <-matrix(nrow = randomizations, ncol = 16)
+
+
+for(j in 1:randomizations)
+{
+  random.tfs <- sample(x=1:num.nodos.al,
+                       size = sum(out.degree != 0), replace = F)
+  random.adj <- matrix(0, nrow = num.nodos.al, ncol = num.nodos.al)
+  for(i in 1:length(random.tfs))
+  {
+    random.adj[random.tfs[i],sample(x=1:num.nodos.al,
+                                    size = out.tfs.true[i], replace = F)] <- 1
+  }
+  
+  random.graph <- graph.adjacency(random.adj, mode = "directed")
+  current.3.nodes <- graph.motifs(graph = random.graph, size = 3)
+  random.3.nodes[j,] <- current.3.nodes
+
+}
+random.3.nodes
+
+#Comparamos cada uno de los motivos con los de nuestra red
+i <- 3
+sign.motifs <- c()
+for(i in 1:16)
+{
+  vector.col <- random.3.nodes[,i]
+  cur.motif <- sum(true.3.nodes[i] <= vector.col)/randomizations
+  sign.motifs <- c(sign.motifs, cur.motif)
+}
+
+plot.igraph(graph.isocreate(size = 3, number = 13, directed = T))
+plot.igraph(graph.isocreate(size = 3, number = 14, directed = T))
+
+```
+
