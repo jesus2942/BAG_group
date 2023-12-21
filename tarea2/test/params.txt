@@ -1,0 +1,14 @@
+path_input_1: /home/bag2023_3/ejemplochip/samples/input/input_prr5_chr1_1.fq.gz
+path_input_2: /home/bag2023_3/ejemplochip/samples/input/input_prr5_chr1_2.fq.gz
+path_input_3: /home/bag2023_3/ejemplochip/samples/input/input_prr5_chr1_3.fq.gz
+path_sample_1: /home/bag2023_3/ejemplochip/samples/chip/chip_prr5_chr1_1.fq.gz
+path_sample_2: /home/bag2023_3/ejemplochip/samples/chip/chip_prr5_chr1_2.fq.gz
+path_sample_3: /home/bag2023_3/ejemplochip/samples/chip/chip_prr5_chr1_3.fq.gz
+path_genome: /home/bag2023_3/ejemplochip/genome/chromosome1.fa
+path_annotation: /home/bag2023_3/ejemplochip/annotation/chromosome1.gtf
+experiment_name: prr5
+working_directory: /home/bag2023_3/tarea2
+installation_directory: /home/bag2023_3/tarea2
+number_of_inputs: 3
+number_of_samples: 3
+transcription_factor(Y/N): Y
